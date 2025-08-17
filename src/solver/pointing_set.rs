@@ -1,7 +1,13 @@
+use crate::board::SudokuBoard;
 use crate::region::{get_all_boxes, RegionType};
-use crate::solver::SudokuSolver;
+use crate::solver::SudokuRuleEnforcer;
 use crate::subset::Subset;
+use std::collections::HashSet;
 use std::ops::Sub;
+
+pub struct PointingSetEnforcer<const N: usize> {
+    known_pointing_sets: HashSet<Subset>,
+}
 
 fn diff<T>(a: &[T], b: &[T]) -> Vec<T::Output>
 where
@@ -10,7 +16,12 @@ where
     a.iter().zip(b).map(|(&v1, &v2)| v1 - v2).collect()
 }
 
-impl<const N: usize> SudokuSolver<N> {
+impl<const N: usize> PointingSetEnforcer<N> {
+    pub fn new() -> Self {
+        Self {
+            known_pointing_sets: Default::default(),
+        }
+    }
     fn infer_pointing_sets_in_region(
         pos_lines: Vec<Vec<(usize, usize)>>,
         val_lines: Vec<Vec<u16>>,
@@ -33,10 +44,11 @@ impl<const N: usize> SudokuSolver<N> {
 
     fn get_pointing_sets_in_region(
         &self,
+        board: &mut SudokuBoard<N>,
         region: Vec<(usize, usize)>,
     ) -> Vec<(RegionType, Subset)> {
-        let size = self.board.size();
-        let block_size = self.board.block_size();
+        let size = board.size();
+        let block_size = board.block_size();
         let mut pos_rows = vec![Vec::new(); block_size];
         let mut pos_cols = vec![Vec::new(); block_size];
         let mut val_rows = vec![vec![0; size]; block_size];
@@ -44,7 +56,7 @@ impl<const N: usize> SudokuSolver<N> {
         let mut val_total = vec![0; size];
 
         for (row, col) in region {
-            let possible_values = self.board.get_possible_values(row, col);
+            let possible_values = board.get_possible_values(row, col);
             pos_rows[row % block_size].push((row, col));
             pos_cols[col % block_size].push((row, col));
 
@@ -64,17 +76,22 @@ impl<const N: usize> SudokuSolver<N> {
 
         row_pointing_sets.chain(col_pointing_sets).collect()
     }
+}
 
-    pub fn enforce_pointing_regions(&mut self) -> Result<bool, String> {
-        let boxes = get_all_boxes(self.board.size());
+impl<const N: usize> SudokuRuleEnforcer<N> for PointingSetEnforcer<N> {
+    fn name(&self) -> &'static str {
+        "PointingSetEnforcer"
+    }
+    fn enforce_rule(&mut self, board: &mut SudokuBoard<N>) -> Result<bool, String> {
+        let boxes = get_all_boxes(board.size());
 
         for box_ in boxes {
-            let pointing_sets = self.get_pointing_sets_in_region(box_);
-            for (rtype, subset) in pointing_sets {
+            let pointing_sets = self.get_pointing_sets_in_region(board, box_);
+            for (region_type, subset) in pointing_sets {
                 if self.known_pointing_sets.contains(&subset) {
                     continue;
                 }
-                let is_solved = self.apply_external_subset(rtype, &subset)?;
+                let is_solved = board.apply_external_subset(region_type, &subset)?;
                 if is_solved {
                     return Ok(true);
                 }

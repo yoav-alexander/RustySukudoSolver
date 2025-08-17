@@ -3,6 +3,7 @@ use crate::solver::SudokuSolver;
 mod all_equal;
 mod board;
 mod join;
+mod possibility_matrix;
 mod region;
 mod solver;
 mod subset;
@@ -39,6 +40,7 @@ const KNOWN_VALUES: [(usize, usize, u16); 30] = [
     (8, 7, 7),
     (8, 8, 9),
 ];
+
 const KNOWN_VALUES2: [(usize, usize, u16); 24] = [
     (0, 1, 5),
     (0, 4, 6),
@@ -66,8 +68,28 @@ const KNOWN_VALUES2: [(usize, usize, u16); 24] = [
     (8, 8, 5),
 ];
 
+const KNOWN_VALUES3: [(usize, usize, u16); 17] = [
+    (1, 5, 3),
+    (1, 7, 8),
+    (1, 8, 5),
+    (2, 2, 1),
+    (2, 4, 2),
+    (3, 3, 5),
+    (3, 5, 7),
+    (4, 2, 4),
+    (4, 6, 1),
+    (5, 1, 9),
+    (6, 0, 5),
+    (6, 7, 7),
+    (6, 8, 3),
+    (7, 2, 2),
+    (7, 4, 1),
+    (8, 4, 4),
+    (8, 8, 9),
+];
+
 fn main() {
-    let mut board = SudokuSolver::<9>::new();
+    let mut sudoku_solver = SudokuSolver::<9>::new();
     for (index, known) in KNOWN_VALUES2.into_iter().enumerate() {
         println!(
             "{:}. {:}, at ({:},{:})",
@@ -76,14 +98,10 @@ fn main() {
             known.0,
             known.1
         );
-        if let Err(msg) = board.set(known.0, known.1, known.2) {
-            println!("{:}", msg);
-            println!("{:?}", board);
-            return;
-        }
+        sudoku_solver.set(known.0, known.1, known.2)
     }
 
-    let solved_board = board.solve();
+    let solved_board = sudoku_solver.solve();
     match solved_board {
         Ok(solved_board) => {
             println!("Final Board:\n{:?}", solved_board);

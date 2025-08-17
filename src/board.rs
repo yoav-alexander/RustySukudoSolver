@@ -1,143 +1,231 @@
-use std::fmt::{Debug, Formatter};
-pub struct Board<const N: usize> {
-    size: usize,
-    block_size: usize,
-    board: [[u16; N]; N],
+use crate::possibility_matrix::PossibilityMatrix;
+use crate::region::RegionType;
+use crate::subset::Subset;
+use std::fmt::{Debug, Display, Formatter};
+
+pub enum ExcludedPos<'a> {
+    Single(usize, usize),
+    Group(&'a Vec<(usize, usize)>),
 }
 
-impl<const N: usize> Board<N> {
-    pub fn new() -> Board<N> {
-        Board {
-            size: N,
-            block_size: N.isqrt(),
-            board: [[u16::MAX; N]; N],
+impl ExcludedPos<'_> {
+    fn firsts_row(&self) -> usize {
+        match self {
+            ExcludedPos::Single(row, _) => *row,
+            ExcludedPos::Group(values) => values[0].0,
+        }
+    }
+
+    fn firsts_col(&self) -> usize {
+        match self {
+            ExcludedPos::Single(_, col) => *col,
+            ExcludedPos::Group(values) => values[0].1,
+        }
+    }
+
+    fn is_excluded(&self, row: usize, col: usize) -> bool {
+        match self {
+            ExcludedPos::Single(e_row, e_col) => *e_col == col && *e_row == row,
+            ExcludedPos::Group(points) => points
+                .iter()
+                .any(|(e_row, e_col)| *e_col == col && *e_row == row),
+        }
+    }
+}
+
+pub struct SudokuBoard<const N: usize> {
+    board: PossibilityMatrix<N>,
+    pub improved: Vec<(usize, usize)>,
+}
+
+impl<const N: usize> SudokuBoard<N> {
+    pub fn new() -> SudokuBoard<N> {
+        Self {
+            board: PossibilityMatrix::new(),
+            improved: Vec::new(),
         }
     }
 
     pub fn size(&self) -> usize {
-        self.size
+        self.board.size()
     }
 
     pub fn block_size(&self) -> usize {
-        self.block_size
-    }
-
-    pub fn set(&mut self, row: usize, col: usize, value: u16) {
-        assert!(row < self.size && col < self.size);
-        self.board[row][col] = 1 << (value - 1);
-    }
-
-    pub fn set_possible_values(&mut self, row: usize, col: usize, values: &[u16]) {
-        assert!(row < self.size && col < self.size);
-
-        self.board[row][col] = 0;
-        for value in values {
-            self.board[row][col] |= 1 << (value - 1);
-        }
-    }
-
-    pub fn remove_value(&mut self, row: usize, col: usize, value: u16) {
-        assert!(row < self.size && col < self.size);
-        assert!(
-            value >= 1 && value <= self.size as u16,
-            "Invalid value got {}",
-            value
-        );
-        self.board[row][col] &= !(1 << (value - 1));
+        self.board.block_size()
     }
 
     pub fn get_possible_values(&self, row: usize, col: usize) -> Vec<u16> {
-        let mut possible_values = vec![];
-        for i in 0..self.size {
-            if (self.board[row][col] & (1u16 << i)) != 0 {
-                possible_values.push((i + 1) as u16);
+        self.board.get_possible_values(row, col)
+    }
+
+    pub fn is_solved(&self) -> bool {
+        self.board.is_board_resolved()
+    }
+
+    pub fn set(&mut self, row: usize, col: usize, value: u16) -> Result<bool, String> {
+        if !self.board.is_possible_value(row, col, value) {
+            return Err(format!(
+                "This board is invalid, Cannot set position ({row},{col}) as {value} \
+                because is not one of the possible values {:?}.",
+                self.board.get_possible_values(row, col)
+            ));
+        }
+        self.improved.push((row, col));
+
+        self.board.set(row, col, value);
+        self.remove_from_row(ExcludedPos::Single(row, col), value)?;
+        self.remove_from_col(ExcludedPos::Single(row, col), value)?;
+        self.remove_from_box(ExcludedPos::Single(row, col), value)?;
+        Ok(self.board.is_board_resolved())
+    }
+
+    fn remove_value(&mut self, row: usize, col: usize, value: u16) -> Result<bool, String> {
+        if self.board.is_cell_resolved(row, col) {
+            if self.board.get_possible_values(row, col)[0] == value {
+                return Err(format!(
+                    "Invalid Board, at ({row},{col}) removed resolved value {value}."
+                ));
+            }
+            return Ok(false);
+        }
+        if !self.board.is_possible_value(row, col, value) {
+            return Ok(false);
+        }
+        self.improved.push((row, col));
+
+        self.board.remove_value(row, col, value);
+        let mut is_solved = false;
+
+        if self.board.is_cell_resolved(row, col) {
+            is_solved = self.set(row, col, self.board.get_possible_values(row, col)[0])?
+        }
+
+        Ok(is_solved)
+    }
+
+    fn remove_from_row(&mut self, excluded_point: ExcludedPos, value: u16) -> Result<bool, String> {
+        let row = excluded_point.firsts_row();
+
+        for i in 0..self.board.size() {
+            if excluded_point.is_excluded(row, i) {
+                continue;
+            }
+            let is_solved = self.remove_value(row, i, value)?;
+            if is_solved {
+                return Ok(true);
             }
         }
-        possible_values
+        Ok(false)
     }
 
-    pub fn is_possible_value(&self, row: usize, col: usize, value: u16) -> bool {
-        assert!(row < self.size && col < self.size && value > 0 && value <= self.size() as u16);
-        (self.board[row][col] & (1u16 << (value - 1))) != 0
+    fn remove_from_col(&mut self, excluded_point: ExcludedPos, value: u16) -> Result<bool, String> {
+        let col = excluded_point.firsts_col();
+
+        for i in 0..self.board.size() {
+            if excluded_point.is_excluded(i, col) {
+                continue;
+            }
+            let is_solved = self.remove_value(i, col, value)?;
+            if is_solved {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
-    pub fn is_cell_resolved(&self, row: usize, col: usize) -> bool {
-        // todo uncouple from 9
-        (0b0000000111111111 & self.board[row][col]).is_power_of_two()
+    fn remove_from_box(&mut self, excluded_point: ExcludedPos, value: u16) -> Result<bool, String> {
+        let box_row =
+            (excluded_point.firsts_row() / self.board.block_size()) * self.board.block_size();
+        let box_col =
+            (excluded_point.firsts_col() / self.board.block_size()) * self.board.block_size();
+        for i in 0..self.board.block_size() {
+            for j in 0..self.board.block_size() {
+                let current_row = box_row + i;
+                let current_col = box_col + j;
+                if excluded_point.is_excluded(current_row, current_col) {
+                    continue;
+                }
+
+                let is_solved = self.remove_value(current_row, current_col, value)?;
+                if is_solved {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
     }
 
-    pub fn is_board_resolved(&self) -> bool {
-        (0..self.size).all(|row| (0..self.size).all(|col| self.is_cell_resolved(row, col)))
+    pub fn apply_external_subset(
+        &mut self,
+        region_type: RegionType,
+        subset: &Subset,
+    ) -> Result<bool, String> {
+        let positions = &subset.positions;
+        for value in subset.values.iter() {
+            let is_solved = match region_type {
+                RegionType::Row => self.remove_from_row(ExcludedPos::Group(positions), *value)?,
+                RegionType::Col => self.remove_from_col(ExcludedPos::Group(positions), *value)?,
+                RegionType::Box => self.remove_from_box(ExcludedPos::Group(positions), *value)?,
+            };
+            if is_solved {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    pub fn apply_internal_subset(&mut self, subset: &Subset) -> Result<bool, String> {
+        if subset.size() == 1 {
+            // hidden digit - only one possible place for digit in region.
+            return self.set(
+                subset.positions[0].0,
+                subset.positions[0].1,
+                subset.values[0],
+            );
+        }
+
+        if let Err(msg) = self.is_valid_subset(subset) {
+            panic!("{}", msg)
+        }
+
+        for (row, col) in subset.positions.clone() {
+            if self.board.get_possible_values(row, col) == subset.values {
+                continue;
+            }
+            self.improved.push((row, col));
+            self.board.set_possible_values(row, col, &subset.values);
+        }
+
+        Ok(false)
+    }
+
+    pub fn is_valid_subset(&self, subset: &Subset) -> Result<(), String> {
+        for (row, col) in subset.positions.iter() {
+            if !subset
+                .values
+                .iter()
+                .all(|v| self.board.is_possible_value(*row, *col, *v))
+            {
+                return Err(format!(
+                    "Can't set position ({row},{col}) as {:?}\
+                     because it's not it the valid options: {:?}.",
+                    subset.values,
+                    self.get_possible_values(*row, *col)
+                ));
+            }
+        }
+        Ok(())
     }
 }
 
-impl<const N: usize> Debug for Board<N> {
+impl<const N: usize> Debug for SudokuBoard<N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let cell_width = self.size * 2;
-        let line_width = (cell_width + 1) * self.block_size() + 1;
-        let separator = format!("+{}", "-".repeat(line_width));
-        let horizontal_line = format!("{}+", separator.repeat(self.block_size()));
-
-        writeln!(f, "{}", horizontal_line)?;
-
-        for row in 0..self.size {
-            write!(f, "| ")?;
-            for col in 0..self.size {
-                let cell_possible_values = self.get_possible_values(row, col);
-                let value_string = if cell_possible_values.is_empty() {
-                    " ".repeat(cell_width) // Handle empty cells
-                } else {
-                    let values: Vec<String> = cell_possible_values
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect();
-                    let value_str = values.join(",");
-                    format!("{:<width$}", value_str, width = cell_width)
-                };
-
-                write!(f, "{} ", value_string)?;
-                if (col + 1) % self.block_size() == 0 {
-                    write!(f, "| ")?;
-                }
-            }
-            writeln!(f)?;
-            if (row + 1) % self.block_size() == 0 {
-                writeln!(f, "{}", horizontal_line)?;
-            }
-        }
-        Ok(())
+        std::fmt::Debug::fmt(&self.board, f)
     }
 }
 
-impl<const N: usize> std::fmt::Display for Board<N> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let cell_width = 3;
-        let line_width = cell_width * self.block_size();
-        let separator = format!("+{}", "-".repeat(line_width));
-        let horizontal_line = format!("{}+", separator.repeat(self.block_size()));
-
-        writeln!(f, "{}", horizontal_line)?;
-        for row in 0..self.size {
-            write!(f, "|")?;
-            for col in 0..self.size {
-                let cell_possible_values = self.get_possible_values(row, col);
-                let value = match cell_possible_values.len() {
-                    0 => "!".to_string(),
-                    1 => format!("{:}", cell_possible_values[0]),
-                    _ => "_".to_string(),
-                };
-
-                if (col + 1) % self.block_size() == 0 {
-                    write!(f, " {} |", value)?;
-                } else {
-                    write!(f, " {} ", value)?;
-                }
-            }
-            write!(f, "\n")?;
-            if (row + 1) % self.block_size() == 0 {
-                writeln!(f, "{}", horizontal_line)?;
-            }
-        }
-        Ok(())
+impl<const N: usize> Display for SudokuBoard<N> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.board, f)
     }
 }
