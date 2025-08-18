@@ -1,13 +1,11 @@
-mod hidden_set;
-mod naked_set;
 mod pointing_set;
+mod sub_set;
 
 use crate::all_equal::AllEqual;
 use crate::board::SudokuBoard;
 use crate::join::IteratorDebugJoin;
-use crate::solver::hidden_set::HiddenSetEnforcer;
-use crate::solver::naked_set::NakedSetEnforcer;
 use crate::solver::pointing_set::PointingSetEnforcer;
+use crate::solver::sub_set::SubSetEnforcer;
 use std::fmt::{Debug, Formatter};
 
 trait SudokuRuleEnforcer<const N: usize> {
@@ -26,8 +24,8 @@ impl<const N: usize> SudokuSolver<N> {
         Self {
             board: SudokuBoard::<N>::new(),
             improvers: vec![
-                Box::new(HiddenSetEnforcer::<N>::new()),
-                Box::new(NakedSetEnforcer::<N>::new()),
+                // Box::new(HiddenSetEnforcer::<N>::new()),
+                Box::new(SubSetEnforcer::<N>::new()),
                 Box::new(PointingSetEnforcer::<N>::new()),
             ],
             pre_solve_error: None,
@@ -76,20 +74,3 @@ impl<const N: usize> Debug for SudokuSolver<N> {
         write!(f, "{:?}", self.board)
     }
 }
-
-/*
-+---------+---------+---------+
-| _  5  _ | _  6  _ | _  3  _ |
-| 4  _  8 | 5  _  _ | _  _  _ |
-| 3  _  _ | _  _  _ | _  _  8 |
-+---------+---------+---------+
-| 8  _  7 | 3  _  _ | _  _  _ |
-| _  1  _ | _  _  _ | _  _  _ |
-| _  _  _ | _  _  _ | 6  8  4 |
-+---------+---------+---------+
-| 5  6  3 | 1  _  _ | 4  2  7 |
-| _  _  _ | _  _  _ | _  9  1 |
-| _  9  _ | _  _  4 | _  6  5 |
-+---------+---------+---------+
-
-*/

@@ -37,6 +37,17 @@ impl<const N: usize> PossibilityMatrix<N> {
         }
     }
 
+    pub fn constrain_possible_values(&mut self, row: usize, col: usize, values: &[u16]) {
+        assert!(row < self.size && col < self.size);
+        assert!(!values.is_empty());
+
+        let mut mask = 0;
+        for v in values {
+            mask |= 1 << (v - 1)
+        }
+        self.board[row][col] &= mask;
+    }
+
     pub fn remove_value(&mut self, row: usize, col: usize, value: u16) {
         assert!(row < self.size && col < self.size);
         assert!(

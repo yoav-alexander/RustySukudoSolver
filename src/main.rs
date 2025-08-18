@@ -90,7 +90,7 @@ const KNOWN_VALUES3: [(usize, usize, u16); 17] = [
 
 fn main() {
     let mut sudoku_solver = SudokuSolver::<9>::new();
-    for (index, known) in KNOWN_VALUES2.into_iter().enumerate() {
+    for (index, known) in KNOWN_VALUES.into_iter().enumerate() {
         println!(
             "{:}. {:}, at ({:},{:})",
             index + 1,

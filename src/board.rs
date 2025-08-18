@@ -193,24 +193,21 @@ impl<const N: usize> SudokuBoard<N> {
                 continue;
             }
             self.improved.push((row, col));
-            self.board.set_possible_values(row, col, &subset.values);
+            self.board
+                .constrain_possible_values(row, col, &subset.values);
         }
 
         Ok(false)
     }
 
     pub fn is_valid_subset(&self, subset: &Subset) -> Result<(), String> {
-        for (row, col) in subset.positions.iter() {
-            if !subset
-                .values
-                .iter()
-                .all(|v| self.board.is_possible_value(*row, *col, *v))
-            {
+        for &(row, col) in subset.positions.iter() {
+            let possible_values = self.board.get_possible_values(row, col);
+            if !possible_values.iter().all(|v| subset.values.contains(v)) {
                 return Err(format!(
-                    "Can't set position ({row},{col}) as {:?}\
+                    "Can't set position ({row},{col}) as {:?} \
                      because it's not it the valid options: {:?}.",
-                    subset.values,
-                    self.get_possible_values(*row, *col)
+                    subset.values, possible_values
                 ));
             }
         }
