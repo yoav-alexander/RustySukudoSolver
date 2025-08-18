@@ -1,3 +1,6 @@
+pub mod possibility_iterator;
+
+use crate::possibility_matrix::possibility_iterator::PossibilityIterator;
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -60,14 +63,8 @@ impl<const N: usize> PossibilityMatrix<N> {
         self.board[row][col] &= !(1 << (value - 1));
     }
 
-    pub fn get_possible_values(&self, row: usize, col: usize) -> Vec<u16> {
-        let mut possible_values = Vec::with_capacity(N);
-        for i in 0..self.size {
-            if (self.board[row][col] & (1u16 << i)) != 0 {
-                possible_values.push((i + 1) as u16);
-            }
-        }
-        possible_values
+    pub fn get_possible_values(&self, row: usize, col: usize) -> PossibilityIterator {
+        PossibilityIterator::new(self.board[row][col], self.size)
     }
 
     pub fn is_possible_value(&self, row: usize, col: usize, value: u16) -> bool {
@@ -104,7 +101,7 @@ impl<const N: usize> Debug for PossibilityMatrix<N> {
         for row in 0..self.size {
             write!(f, "| ")?;
             for col in 0..self.size {
-                let cell_possible_values = self.get_possible_values(row, col);
+                let cell_possible_values: Vec<_> = self.get_possible_values(row, col).collect();
                 let value_string = if cell_possible_values.is_empty() {
                     " ".repeat(cell_width)
                 } else {
@@ -150,8 +147,7 @@ impl<const N: usize> Display for PossibilityMatrix<N> {
         for row in 0..self.size {
             write!(f, "|")?;
             for col in 0..self.size {
-                let cell_possible_values = self.get_possible_values(row, col);
-
+                let cell_possible_values: Vec<_> = self.get_possible_values(row, col).collect();
                 match cell_possible_values.len() {
                     0 => write!(f, " ! ")?,
                     1 => write!(f, " {} ", cell_possible_values[0])?,

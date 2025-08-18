@@ -31,14 +31,13 @@ impl<const N: usize> SubSetEnforcer<N> {
     }
 
     fn get_possible_combinations_in_region(
-        &self,
-        board: &mut SudokuBoard<N>,
+        board: &SudokuBoard<N>,
         region: Vec<(usize, usize)>,
     ) -> Vec<PositionCombination> {
         let max_sub_set_size = board.size() / 2;
         let possible_positions: Vec<_> = region
             .into_iter()
-            .map(|p| (p, board.get_possible_values(p.0, p.1)))
+            .map(|p| (p, board.get_possible_values(p.0, p.1).collect::<Vec<_>>()))
             .filter(|(_, pv)| pv.len() > 1 && pv.len() < max_sub_set_size)
             .collect();
 
@@ -50,12 +49,8 @@ impl<const N: usize> SubSetEnforcer<N> {
         possible_combinations
     }
 
-    fn get_sub_sets_in_region(
-        &mut self,
-        board: &mut SudokuBoard<N>,
-        region: Vec<(usize, usize)>,
-    ) -> Vec<Subset> {
-        let possible_combinations = self.get_possible_combinations_in_region(board, region);
+    fn get_sub_sets_in_region(board: &SudokuBoard<N>, region: Vec<(usize, usize)>) -> Vec<Subset> {
+        let possible_combinations = Self::get_possible_combinations_in_region(board, region);
 
         let mut sub_sets = Vec::new();
         for possible_combination in possible_combinations {
@@ -79,7 +74,7 @@ impl<const N: usize> SudokuRuleEnforcer<N> for SubSetEnforcer<N> {
         let regions = get_all_regions(board.size());
 
         for (region_type, region) in regions {
-            let subsets = self.get_sub_sets_in_region(board, region);
+            let subsets = Self::get_sub_sets_in_region(board, region);
             for subset in subsets {
                 if self.known_sub_sets.contains(&subset) {
                     continue;

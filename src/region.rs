@@ -9,7 +9,7 @@ pub enum RegionType {
 
 #[cached]
 pub fn get_all_boxes(size: usize) -> Vec<Vec<(usize, usize)>> {
-    let mut regions = Vec::new();
+    let mut regions = Vec::with_capacity(size);
     let block_size = size.isqrt();
 
     let box_vector_map: Vec<(usize, usize)> = (0..block_size)
@@ -30,7 +30,7 @@ pub fn get_all_boxes(size: usize) -> Vec<Vec<(usize, usize)>> {
 
 #[cached]
 pub fn get_all_regions(size: usize) -> Vec<(RegionType, Vec<(usize, usize)>)> {
-    let mut regions = Vec::new();
+    let mut regions = Vec::with_capacity(size * 3);
 
     for i in 0..size {
         regions.push((RegionType::Row, (0..size).map(|j| (i, j)).collect()));

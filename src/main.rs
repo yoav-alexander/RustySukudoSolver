@@ -99,7 +99,7 @@ fn main() {
     let solved_board = sudoku_solver.solve();
     match solved_board {
         Ok(solved_board) => {
-            // println!("Final Board:\n{:?}", solved_board);
+            println!("Final Board:\n{:?}", solved_board);
             println!("Solved:\n{:}", solved_board);
         }
         Err(msg) => {

@@ -1,3 +1,4 @@
+use crate::possibility_matrix::possibility_iterator::PossibilityIterator;
 use crate::possibility_matrix::PossibilityMatrix;
 use crate::region::RegionType;
 use crate::subset::Subset;
@@ -54,7 +55,7 @@ impl<const N: usize> SudokuBoard<N> {
         self.board.block_size()
     }
 
-    pub fn get_possible_values(&self, row: usize, col: usize) -> Vec<u16> {
+    pub fn get_possible_values(&self, row: usize, col: usize) -> PossibilityIterator {
         self.board.get_possible_values(row, col)
     }
 
@@ -67,7 +68,7 @@ impl<const N: usize> SudokuBoard<N> {
             return Err(format!(
                 "This board is invalid, Cannot set position ({row},{col}) as {value} \
                 because is not one of the possible values {:?}.",
-                self.board.get_possible_values(row, col)
+                self.board.get_possible_values(row, col).collect::<Vec<_>>()
             ));
         }
         self.improved.push((row, col));
@@ -81,7 +82,7 @@ impl<const N: usize> SudokuBoard<N> {
 
     fn remove_value(&mut self, row: usize, col: usize, value: u16) -> Result<bool, String> {
         if self.board.is_cell_resolved(row, col) {
-            if self.board.get_possible_values(row, col)[0] == value {
+            if self.board.get_possible_values(row, col).next().unwrap() == value {
                 return Err(format!(
                     "Invalid Board, at ({row},{col}) removed resolved value {value}."
                 ));
@@ -94,10 +95,11 @@ impl<const N: usize> SudokuBoard<N> {
         self.improved.push((row, col));
 
         self.board.remove_value(row, col, value);
-        let mut is_solved = false;
 
+        let mut is_solved = false;
         if self.board.is_cell_resolved(row, col) {
-            is_solved = self.set(row, col, self.board.get_possible_values(row, col)[0])?
+            let value = self.board.get_possible_values(row, col).next().unwrap();
+            is_solved = self.set(row, col, value)?
         }
 
         Ok(is_solved)
@@ -189,7 +191,11 @@ impl<const N: usize> SudokuBoard<N> {
         }
 
         for (row, col) in subset.positions.clone() {
-            if self.board.get_possible_values(row, col) == subset.values {
+            if self
+                .board
+                .get_possible_values(row, col)
+                .eq(subset.values.iter().copied())
+            {
                 continue;
             }
             self.improved.push((row, col));
@@ -202,7 +208,7 @@ impl<const N: usize> SudokuBoard<N> {
 
     pub fn is_valid_subset(&self, subset: &Subset) -> Result<(), String> {
         for &(row, col) in subset.positions.iter() {
-            let possible_values = self.board.get_possible_values(row, col);
+            let possible_values: Vec<_> = self.board.get_possible_values(row, col).collect();
             if !possible_values.iter().all(|v| subset.values.contains(v)) {
                 return Err(format!(
                     "Can't set position ({row},{col}) as {:?} \

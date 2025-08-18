@@ -49,8 +49,8 @@ impl<const N: usize> PointingSetEnforcer<N> {
     ) -> Vec<(RegionType, Subset)> {
         let size = board.size();
         let block_size = board.block_size();
-        let mut pos_rows = vec![Vec::new(); block_size];
-        let mut pos_cols = vec![Vec::new(); block_size];
+        let mut pos_rows = vec![Vec::with_capacity(block_size); block_size];
+        let mut pos_cols = vec![Vec::with_capacity(block_size); block_size];
         let mut val_rows = vec![vec![0; size]; block_size];
         let mut val_cols = vec![vec![0; size]; block_size];
         let mut val_total = vec![0; size];
