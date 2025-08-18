@@ -1,4 +1,3 @@
-use crate::all_equal::AllEqual;
 use crate::board::SudokuBoard;
 use crate::region::get_all_regions;
 use crate::solver::SudokuRuleEnforcer;
@@ -10,10 +9,12 @@ pub struct SubSetEnforcer<const N: usize> {
     known_sub_sets: HashSet<Subset>,
 }
 
-pub fn get_values_set(vec: &Vec<Vec<u16>>, size: usize) -> Vec<u16> {
+type PositionCombination = Vec<((usize, usize), Vec<u16>)>;
+
+pub fn get_values_set(vec: &[Vec<u16>], size: usize) -> Vec<u16> {
     let mut common_values = vec![0; size + 1];
-    for value in vec.iter().flatten() {
-        common_values[*value as usize] += 1;
+    for &value in vec.iter().flatten() {
+        common_values[value as usize] += 1;
     }
     common_values
         .into_iter()
@@ -28,11 +29,12 @@ impl<const N: usize> SubSetEnforcer<N> {
             known_sub_sets: Default::default(),
         }
     }
+
     fn get_possible_combinations_in_region(
         &self,
         board: &mut SudokuBoard<N>,
         region: Vec<(usize, usize)>,
-    ) -> Vec<Vec<((usize, usize), Vec<u16>)>> {
+    ) -> Vec<PositionCombination> {
         let max_sub_set_size = board.size() / 2;
         let possible_positions: Vec<_> = region
             .into_iter()
@@ -42,13 +44,7 @@ impl<const N: usize> SubSetEnforcer<N> {
 
         let mut possible_combinations = Vec::new();
         for size in 0..=max_sub_set_size {
-            possible_combinations.extend(
-                possible_positions
-                    .iter()
-                    .cloned()
-                    .into_iter()
-                    .combinations(size),
-            );
+            possible_combinations.extend(possible_positions.iter().cloned().combinations(size));
         }
 
         possible_combinations

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
-pub(crate) trait IteratorDebugJoin {
+#[allow(dead_code)]
+pub trait IteratorDebugJoin {
     fn debug_join(self, sep: &str) -> String;
 }
 

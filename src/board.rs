@@ -28,7 +28,7 @@ impl ExcludedPos<'_> {
             ExcludedPos::Single(e_row, e_col) => *e_col == col && *e_row == row,
             ExcludedPos::Group(points) => points
                 .iter()
-                .any(|(e_row, e_col)| *e_col == col && *e_row == row),
+                .any(|&(e_row, e_col)| e_col == col && e_row == row),
         }
     }
 }
@@ -161,11 +161,11 @@ impl<const N: usize> SudokuBoard<N> {
         subset: &Subset,
     ) -> Result<bool, String> {
         let positions = &subset.positions;
-        for value in subset.values.iter() {
+        for &value in subset.values.iter() {
             let is_solved = match region_type {
-                RegionType::Row => self.remove_from_row(ExcludedPos::Group(positions), *value)?,
-                RegionType::Col => self.remove_from_col(ExcludedPos::Group(positions), *value)?,
-                RegionType::Box => self.remove_from_box(ExcludedPos::Group(positions), *value)?,
+                RegionType::Row => self.remove_from_row(ExcludedPos::Group(positions), value)?,
+                RegionType::Col => self.remove_from_col(ExcludedPos::Group(positions), value)?,
+                RegionType::Box => self.remove_from_box(ExcludedPos::Group(positions), value)?,
             };
             if is_solved {
                 return Ok(true);

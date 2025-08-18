@@ -25,17 +25,17 @@ impl<const N: usize> PointingSetEnforcer<N> {
     fn infer_pointing_sets_in_region(
         pos_lines: Vec<Vec<(usize, usize)>>,
         val_lines: Vec<Vec<u16>>,
-        val_total: &Vec<u16>,
+        val_total: &[u16],
     ) -> Vec<Subset> {
         let mut pointing_sets = Vec::new();
         for (line_values, line_positions) in val_lines.into_iter().zip(pos_lines) {
-            let only_in_line: Vec<u16> = diff(&val_total, &line_values)
+            let only_in_line: Vec<u16> = diff(val_total, &line_values)
                 .into_iter()
                 .enumerate()
                 .filter(|&(i, d)| d == 0 && val_total[i] != 1)
                 .map(|(i, _)| i as u16 + 1)
                 .collect();
-            if only_in_line.len() > 0 {
+            if !only_in_line.is_empty() {
                 pointing_sets.push(Subset::new(only_in_line, line_positions))
             }
         }

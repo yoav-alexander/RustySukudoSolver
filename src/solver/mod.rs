@@ -1,9 +1,7 @@
 mod pointing_set;
 mod sub_set;
 
-use crate::all_equal::AllEqual;
 use crate::board::SudokuBoard;
-use crate::join::IteratorDebugJoin;
 use crate::solver::pointing_set::PointingSetEnforcer;
 use crate::solver::sub_set::SubSetEnforcer;
 use std::fmt::{Debug, Formatter};
@@ -48,21 +46,21 @@ impl<const N: usize> SudokuSolver<N> {
         if self.board.is_solved() {
             return Ok(self.board);
         }
-        println!("solving:\n{}\n{:?}", self.board, self.board);
-        let mut iteration = 1;
-        while self.board.improved.len() > 0 {
+        // println!("solving:\n{}\n{:?}", self.board, self.board);
+        // let mut iteration = 1;
+        while !self.board.improved.is_empty() {
             self.board.improved = Vec::new();
 
-            for mut improver in self.improvers.iter_mut() {
+            for improver in self.improvers.iter_mut() {
                 let is_solved = improver.enforce_rule(&mut self.board);
                 if is_solved.ok().unwrap_or(false) {
                     break;
                 }
-                let x = improver.name();
-                println!("iteration: {iteration} solver {x} board:\n{:?}", self.board);
+                // let x = improver.name();
+                // println!("iteration: {iteration} solver {x} board:\n{:?}", self.board);
             }
-            println!("Improvements: {:?}", self.board.improved);
-            iteration += 1;
+            // println!("Improvements: {:?}", self.board.improved);
+            // iteration += 1;
         }
 
         Ok(self.board)

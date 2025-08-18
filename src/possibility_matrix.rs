@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 
 pub struct PossibilityMatrix<const N: usize> {
@@ -28,6 +29,7 @@ impl<const N: usize> PossibilityMatrix<N> {
         self.board[row][col] = 1 << (value - 1);
     }
 
+    #[allow(dead_code)]
     pub fn set_possible_values(&mut self, row: usize, col: usize, values: &[u16]) {
         assert!(row < self.size && col < self.size);
 
@@ -59,7 +61,7 @@ impl<const N: usize> PossibilityMatrix<N> {
     }
 
     pub fn get_possible_values(&self, row: usize, col: usize) -> Vec<u16> {
-        let mut possible_values = vec![];
+        let mut possible_values = Vec::with_capacity(N);
         for i in 0..self.size {
             if (self.board[row][col] & (1u16 << i)) != 0 {
                 possible_values.push((i + 1) as u16);
@@ -84,20 +86,27 @@ impl<const N: usize> PossibilityMatrix<N> {
 }
 
 impl<const N: usize> Debug for PossibilityMatrix<N> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let cell_width = self.size * 2;
         let line_width = (cell_width + 1) * self.block_size() + 1;
-        let separator = format!("+{}", "-".repeat(line_width));
-        let horizontal_line = format!("{}+", separator.repeat(self.block_size()));
 
-        writeln!(f, "{}", horizontal_line)?;
+        let write_horizontal_line = |f: &mut Formatter| -> fmt::Result {
+            for _ in 0..self.block_size() {
+                write!(f, "+")?;
+                for _ in 0..line_width {
+                    write!(f, "-")?;
+                }
+            }
+            writeln!(f, "+")
+        };
 
+        write_horizontal_line(f)?;
         for row in 0..self.size {
             write!(f, "| ")?;
             for col in 0..self.size {
                 let cell_possible_values = self.get_possible_values(row, col);
                 let value_string = if cell_possible_values.is_empty() {
-                    " ".repeat(cell_width) // Handle empty cells
+                    " ".repeat(cell_width)
                 } else {
                     let values: Vec<String> = cell_possible_values
                         .iter()
@@ -114,7 +123,7 @@ impl<const N: usize> Debug for PossibilityMatrix<N> {
             }
             writeln!(f)?;
             if (row + 1) % self.block_size() == 0 {
-                writeln!(f, "{}", horizontal_line)?;
+                write_horizontal_line(f)?;
             }
         }
         Ok(())
@@ -122,32 +131,40 @@ impl<const N: usize> Debug for PossibilityMatrix<N> {
 }
 
 impl<const N: usize> Display for PossibilityMatrix<N> {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let block_size = self.block_size();
         let cell_width = 3;
-        let line_width = cell_width * self.block_size();
-        let separator = format!("+{}", "-".repeat(line_width));
-        let horizontal_line = format!("{}+", separator.repeat(self.block_size()));
+        let line_width = cell_width * block_size;
 
-        writeln!(f, "{}", horizontal_line)?;
+        let write_horizontal_line = |f: &mut Formatter| -> fmt::Result {
+            for _ in 0..block_size {
+                write!(f, "+")?;
+                for _ in 0..line_width {
+                    write!(f, "-")?;
+                }
+            }
+            writeln!(f, "+")
+        };
+
+        write_horizontal_line(f)?;
         for row in 0..self.size {
             write!(f, "|")?;
             for col in 0..self.size {
                 let cell_possible_values = self.get_possible_values(row, col);
-                let value = match cell_possible_values.len() {
-                    0 => "!".to_string(),
-                    1 => format!("{:}", cell_possible_values[0]),
-                    _ => "_".to_string(),
+
+                match cell_possible_values.len() {
+                    0 => write!(f, " ! ")?,
+                    1 => write!(f, " {} ", cell_possible_values[0])?,
+                    _ => write!(f, " _ ")?,
                 };
 
-                if (col + 1) % self.block_size() == 0 {
-                    write!(f, " {} |", value)?;
-                } else {
-                    write!(f, " {} ", value)?;
+                if (col + 1) % block_size == 0 {
+                    write!(f, "|")?;
                 }
             }
-            write!(f, "\n")?;
-            if (row + 1) % self.block_size() == 0 {
-                writeln!(f, "{}", horizontal_line)?;
+            writeln!(f)?;
+            if (row + 1) % block_size == 0 {
+                write_horizontal_line(f)?;
             }
         }
         Ok(())
