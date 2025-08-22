@@ -49,7 +49,7 @@ impl<const N: usize> SudokuSolver<N> {
         // println!("solving:\n{}\n{:?}", self.board, self.board);
         // let mut iteration = 1;
         while !self.board.improved.is_empty() {
-            self.board.improved = Vec::new();
+            self.board.improved.clear();
 
             for improver in self.improvers.iter_mut() {
                 let is_solved = improver.enforce_rule(&mut self.board);
