@@ -73,8 +73,7 @@ impl<const N: usize> PossibilityMatrix<N> {
     }
 
     pub fn is_cell_resolved(&self, row: usize, col: usize) -> bool {
-        // todo uncouple from 9
-        (0b0000000111111111 & self.board[row][col]).is_power_of_two()
+        (((1 << N) - 1) & self.board[row][col]).is_power_of_two()
     }
 
     pub fn is_board_resolved(&self) -> bool {
