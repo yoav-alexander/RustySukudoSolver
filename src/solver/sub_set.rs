@@ -1,4 +1,5 @@
 use crate::board::SudokuBoard;
+use crate::possibility_matrix::bit_storage::{ForSize, StorageForSize};
 use crate::region::get_all_regions;
 use crate::solver::SudokuRuleEnforcer;
 use crate::subset::Subset;
@@ -9,24 +10,27 @@ pub struct SubSetEnforcer<const N: usize> {
     known_sub_sets: HashSet<Subset>,
 }
 
-type PositionCombination = Vec<((usize, usize), Vec<u16>)>;
+type PositionCombination = Vec<((usize, usize), Vec<usize>)>;
 
-pub fn get_values_set(vec: &[Vec<u16>], size: usize) -> Vec<u16> {
+pub fn get_values_set(vec: &[Vec<usize>], size: usize) -> Vec<usize> {
     let mut common_values = vec![0; size + 1];
     for &value in vec.iter().flatten() {
-        common_values[value as usize] += 1;
+        common_values[value] += 1;
     }
     common_values
         .into_iter()
         .enumerate()
-        .filter_map(|(i, v)| if v > 0 { Some(i as u16) } else { None })
+        .filter_map(|(i, v)| if v > 0 { Some(i) } else { None })
         .collect()
 }
 
-impl<const N: usize> SubSetEnforcer<N> {
+impl<const N: usize> SubSetEnforcer<N>
+where
+    ForSize<N>: StorageForSize,
+{
     pub fn new() -> Self {
         Self {
-            known_sub_sets: Default::default(),
+            known_sub_sets: HashSet::default(),
         }
     }
 
@@ -65,7 +69,10 @@ impl<const N: usize> SubSetEnforcer<N> {
     }
 }
 
-impl<const N: usize> SudokuRuleEnforcer<N> for SubSetEnforcer<N> {
+impl<const N: usize> SudokuRuleEnforcer<N> for SubSetEnforcer<N>
+where
+    ForSize<N>: StorageForSize,
+{
     fn name(&self) -> &'static str {
         "SubSetEnforcer"
     }

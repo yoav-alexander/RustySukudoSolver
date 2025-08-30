@@ -4,9 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [profile.release]
-debug = true
+#lto = "fat"   # or "thin" or true
+#codegen-units = 1  # optional, helps with performance for fat LTO
+#debug = true
 
 
 [dependencies]
 cached = "0.56.0"
 itertools = "0.14.0"
+num-traits = "0.2.19"

@@ -1,79 +1,127 @@
+pub mod bit_storage;
 pub mod possibility_iterator;
 
+use crate::possibility_matrix::bit_storage::{ForSize, StorageForSize};
 use crate::possibility_matrix::possibility_iterator::PossibilityIterator;
+use num_traits::{Bounded, One, Zero};
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 
-pub struct PossibilityMatrix<const N: usize> {
-    size: usize,
-    block_size: usize,
-    board: [[u16; N]; N],
+macro_rules! assert_position {
+    ($matrix:expr, $row:expr, $col:expr) => {
+        assert!(
+            $row < $matrix.size && $col < $matrix.size,
+            "Invalid position ({:},{:})",
+            $row,
+            $col
+        );
+    };
 }
 
-impl<const N: usize> PossibilityMatrix<N> {
-    pub fn new() -> PossibilityMatrix<N> {
+macro_rules! assert_value {
+    ($matrix:expr, $value:expr) => {
+        assert!(
+            $value > 0 && $value <= $matrix.size,
+            "Invalid value {} expected between 1 and {}",
+            $value,
+            $matrix.size
+        );
+    };
+}
+
+fn is_one_on_bit<T>(x: T) -> bool
+where
+    T: Copy + std::ops::BitAnd<Output = T> + std::ops::Sub<Output = T> + PartialEq + From<u8>,
+{
+    x != T::from(0) && (x & (x - T::from(1))) == T::from(0)
+}
+
+pub struct PossibilityMatrix<const N: usize, S: StorageForSize = ForSize<N>>
+where
+    ForSize<N>: StorageForSize,
+{
+    size: usize,
+    block_size: usize,
+    board: [[S::SType; N]; N],
+}
+
+impl<const N: usize, S: StorageForSize> PossibilityMatrix<N, S>
+where
+    ForSize<N>: StorageForSize,
+{
+    pub fn new() -> Self {
         Self {
             size: N,
             block_size: N.isqrt(),
-            board: [[u16::MAX; N]; N],
+            board: [[<S::SType>::max_value(); N]; N],
         }
     }
 
-    pub fn size(&self) -> usize {
+    pub const fn size(&self) -> usize {
         self.size
     }
 
-    pub fn block_size(&self) -> usize {
+    pub const fn block_size(&self) -> usize {
         self.block_size
     }
 
-    pub fn set(&mut self, row: usize, col: usize, value: u16) {
-        assert!(row < self.size && col < self.size);
-        self.board[row][col] = 1 << (value - 1);
+    #[allow(clippy::inline_always)]
+    #[inline(always)]
+    fn value_to_stype(&self, value: usize) -> S::SType {
+        assert_value!(self, value);
+        value.try_into().unwrap()
+    }
+
+    pub fn set(&mut self, row: usize, col: usize, value: usize) {
+        assert_position!(self, row, col);
+        let value = self.value_to_stype(value);
+        self.board[row][col] = S::SType::one() << (value - S::SType::one());
     }
 
     #[allow(dead_code)]
-    pub fn set_possible_values(&mut self, row: usize, col: usize, values: &[u16]) {
-        assert!(row < self.size && col < self.size);
+    pub fn set_possible_values(&mut self, row: usize, col: usize, values: &[usize]) {
+        assert_position!(self, row, col);
 
-        self.board[row][col] = 0;
-        for value in values {
-            self.board[row][col] |= 1 << (value - 1);
+        self.board[row][col] = S::SType::zero();
+        for &value in values {
+            let value = self.value_to_stype(value);
+            self.board[row][col] |= S::SType::one() << (value - S::SType::one());
         }
     }
 
-    pub fn constrain_possible_values(&mut self, row: usize, col: usize, values: &[u16]) {
-        assert!(row < self.size && col < self.size);
+    pub fn constrain_possible_values(&mut self, row: usize, col: usize, values: &[usize]) {
+        assert_position!(self, row, col);
         assert!(!values.is_empty());
 
-        let mut mask = 0;
-        for v in values {
-            mask |= 1 << (v - 1)
+        let mut mask = S::SType::zero();
+        for &value in values {
+            let value = self.value_to_stype(value);
+            mask |= S::SType::one() << (value - S::SType::one());
         }
         self.board[row][col] &= mask;
     }
 
-    pub fn remove_value(&mut self, row: usize, col: usize, value: u16) {
-        assert!(row < self.size && col < self.size);
-        assert!(
-            value >= 1 && value <= self.size as u16,
-            "Invalid value got {}",
-            value
-        );
-        self.board[row][col] &= !(1 << (value - 1));
+    pub fn remove_value(&mut self, row: usize, col: usize, value: usize) {
+        assert_position!(self, row, col);
+        let value = self.value_to_stype(value);
+        self.board[row][col] &= !(S::SType::one() << (value - S::SType::one()));
     }
 
-    pub fn get_possible_values(&self, row: usize, col: usize) -> PossibilityIterator {
-        PossibilityIterator::new(self.board[row][col], self.size)
+    pub fn get_possible_values(&self, row: usize, col: usize) -> PossibilityIterator<N, S> {
+        assert_position!(self, row, col);
+        PossibilityIterator::<N, S>::new(self.board[row][col], self.size)
     }
 
-    pub fn is_possible_value(&self, row: usize, col: usize, value: u16) -> bool {
-        assert!(row < self.size && col < self.size && value > 0 && value <= self.size() as u16);
-        (self.board[row][col] & (1u16 << (value - 1))) != 0
+    pub fn is_possible_value(&self, row: usize, col: usize, value: usize) -> bool {
+        assert_position!(self, row, col);
+        assert_value!(self, value);
+        let value = self.value_to_stype(value);
+        (self.board[row][col] & (S::SType::one() << (value - S::SType::one()))) != S::SType::zero()
     }
 
     pub fn is_cell_resolved(&self, row: usize, col: usize) -> bool {
-        (((1 << N) - 1) & self.board[row][col]).is_power_of_two()
+        assert_position!(self, row, col);
+        is_one_on_bit(((S::SType::one() << N) - S::SType::one()) & self.board[row][col])
     }
 
     pub fn is_board_resolved(&self) -> bool {
@@ -81,7 +129,10 @@ impl<const N: usize> PossibilityMatrix<N> {
     }
 }
 
-impl<const N: usize> Debug for PossibilityMatrix<N> {
+impl<const N: usize, S: StorageForSize> Debug for PossibilityMatrix<N, S>
+where
+    ForSize<N>: StorageForSize,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let cell_width = self.size * 2;
         let line_width = (cell_width + 1) * self.block_size() + 1;
@@ -109,10 +160,10 @@ impl<const N: usize> Debug for PossibilityMatrix<N> {
                         .map(ToString::to_string)
                         .collect();
                     let value_str = values.join(",");
-                    format!("{:<width$}", value_str, width = cell_width)
+                    format!("{value_str:<cell_width$}")
                 };
 
-                write!(f, "{} ", value_string)?;
+                write!(f, "{value_string} ")?;
                 if (col + 1) % self.block_size() == 0 {
                     write!(f, "| ")?;
                 }
@@ -126,7 +177,10 @@ impl<const N: usize> Debug for PossibilityMatrix<N> {
     }
 }
 
-impl<const N: usize> Display for PossibilityMatrix<N> {
+impl<const N: usize, S: StorageForSize> Display for PossibilityMatrix<N, S>
+where
+    ForSize<N>: StorageForSize,
+{
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let block_size = self.block_size();
         let cell_width = 3;
@@ -151,7 +205,7 @@ impl<const N: usize> Display for PossibilityMatrix<N> {
                     0 => write!(f, " ! ")?,
                     1 => write!(f, " {} ", cell_possible_values[0])?,
                     _ => write!(f, " _ ")?,
-                };
+                }
 
                 if (col + 1) % block_size == 0 {
                     write!(f, "|")?;

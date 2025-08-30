@@ -1,26 +1,28 @@
-use std::fmt::Debug;
+use crate::possibility_matrix::bit_storage::{ForSize, StorageForSize};
+use num_traits::{One, PrimInt, Zero};
 
 #[derive(Clone)]
-pub struct PossibilityIterator {
-    mask: u16,
+pub struct PossibilityIterator<const N: usize, S: StorageForSize = ForSize<N>> {
+    mask: S::SType,
     size: usize,
 }
 
-impl PossibilityIterator {
-    pub fn new(mask: u16, size: usize) -> Self {
-        PossibilityIterator { mask, size }
+impl<const N: usize, S: StorageForSize> PossibilityIterator<N, S> {
+    pub const fn new(mask: S::SType, size: usize) -> Self {
+        Self { mask, size }
     }
 }
 
-impl Iterator for PossibilityIterator {
-    type Item = u16;
+impl<const N: usize, S: StorageForSize> Iterator for PossibilityIterator<N, S> {
+    type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let bit_pos = self.mask.trailing_zeros() as u16;
-        while self.mask > 0 && bit_pos < self.size as u16 {
+        let bit_pos = self.mask.trailing_zeros() as usize;
+        if self.mask > S::SType::zero() && bit_pos < self.size {
             // Clear the lowest set bit
             // e.g., 0b0110 & 0b0101 = 0b0100
-            self.mask &= self.mask - 1;
+            self.mask &= self.mask - S::SType::one();
+            #[allow(clippy::cast_possible_truncation)]
             return Some(bit_pos + 1);
         }
         None

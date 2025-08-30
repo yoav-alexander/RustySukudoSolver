@@ -1,3 +1,4 @@
+use crate::possibility_matrix::bit_storage::{ForSize, StorageForSize};
 use crate::possibility_matrix::possibility_iterator::PossibilityIterator;
 use crate::possibility_matrix::PossibilityMatrix;
 use crate::region::RegionType;
@@ -34,28 +35,34 @@ impl ExcludedPos<'_> {
     }
 }
 
-pub struct SudokuBoard<const N: usize> {
+pub struct SudokuBoard<const N: usize>
+where
+    ForSize<N>: StorageForSize,
+{
     board: PossibilityMatrix<N>,
     pub improved: Vec<(usize, usize)>,
 }
 
-impl<const N: usize> SudokuBoard<N> {
-    pub fn new() -> SudokuBoard<N> {
+impl<const N: usize> SudokuBoard<N>
+where
+    ForSize<N>: StorageForSize,
+{
+    pub fn new() -> Self {
         Self {
-            board: PossibilityMatrix::new(),
+            board: PossibilityMatrix::<N>::new(),
             improved: Vec::new(),
         }
     }
 
-    pub fn size(&self) -> usize {
+    pub const fn size(&self) -> usize {
         self.board.size()
     }
 
-    pub fn block_size(&self) -> usize {
+    pub const fn block_size(&self) -> usize {
         self.board.block_size()
     }
 
-    pub fn get_possible_values(&self, row: usize, col: usize) -> PossibilityIterator {
+    pub fn get_possible_values(&self, row: usize, col: usize) -> PossibilityIterator<N> {
         self.board.get_possible_values(row, col)
     }
 
@@ -63,7 +70,7 @@ impl<const N: usize> SudokuBoard<N> {
         self.board.is_board_resolved()
     }
 
-    pub fn set(&mut self, row: usize, col: usize, value: u16) -> Result<bool, String> {
+    pub fn set(&mut self, row: usize, col: usize, value: usize) -> Result<bool, String> {
         if !self.board.is_possible_value(row, col, value) {
             return Err(format!(
                 "This board is invalid, Cannot set position ({row},{col}) as {value} \
@@ -74,13 +81,13 @@ impl<const N: usize> SudokuBoard<N> {
         self.improved.push((row, col));
 
         self.board.set(row, col, value);
-        self.remove_from_row(ExcludedPos::Single(row, col), value)?;
-        self.remove_from_col(ExcludedPos::Single(row, col), value)?;
-        self.remove_from_box(ExcludedPos::Single(row, col), value)?;
+        self.remove_from_row(&ExcludedPos::Single(row, col), value)?;
+        self.remove_from_col(&ExcludedPos::Single(row, col), value)?;
+        self.remove_from_box(&ExcludedPos::Single(row, col), value)?;
         Ok(self.board.is_board_resolved())
     }
 
-    fn remove_value(&mut self, row: usize, col: usize, value: u16) -> Result<bool, String> {
+    fn remove_value(&mut self, row: usize, col: usize, value: usize) -> Result<bool, String> {
         if self.board.is_cell_resolved(row, col) {
             if self.board.get_possible_values(row, col).next().unwrap() == value {
                 return Err(format!(
@@ -96,16 +103,21 @@ impl<const N: usize> SudokuBoard<N> {
 
         self.board.remove_value(row, col, value);
 
-        let mut is_solved = false;
-        if self.board.is_cell_resolved(row, col) {
+        let is_solved = if self.board.is_cell_resolved(row, col) {
             let value = self.board.get_possible_values(row, col).next().unwrap();
-            is_solved = self.set(row, col, value)?
-        }
+            self.set(row, col, value)?
+        } else {
+            false
+        };
 
         Ok(is_solved)
     }
 
-    fn remove_from_row(&mut self, excluded_point: ExcludedPos, value: u16) -> Result<bool, String> {
+    fn remove_from_row(
+        &mut self,
+        excluded_point: &ExcludedPos,
+        value: usize,
+    ) -> Result<bool, String> {
         let row = excluded_point.firsts_row();
 
         for i in 0..self.board.size() {
@@ -120,7 +132,11 @@ impl<const N: usize> SudokuBoard<N> {
         Ok(false)
     }
 
-    fn remove_from_col(&mut self, excluded_point: ExcludedPos, value: u16) -> Result<bool, String> {
+    fn remove_from_col(
+        &mut self,
+        excluded_point: &ExcludedPos,
+        value: usize,
+    ) -> Result<bool, String> {
         let col = excluded_point.firsts_col();
 
         for i in 0..self.board.size() {
@@ -135,7 +151,11 @@ impl<const N: usize> SudokuBoard<N> {
         Ok(false)
     }
 
-    fn remove_from_box(&mut self, excluded_point: ExcludedPos, value: u16) -> Result<bool, String> {
+    fn remove_from_box(
+        &mut self,
+        excluded_point: &ExcludedPos,
+        value: usize,
+    ) -> Result<bool, String> {
         let box_row =
             (excluded_point.firsts_row() / self.board.block_size()) * self.board.block_size();
         let box_col =
@@ -163,11 +183,11 @@ impl<const N: usize> SudokuBoard<N> {
         subset: &Subset,
     ) -> Result<bool, String> {
         let positions = &subset.positions;
-        for &value in subset.values.iter() {
+        for &value in &subset.values {
             let is_solved = match region_type {
-                RegionType::Row => self.remove_from_row(ExcludedPos::Group(positions), value)?,
-                RegionType::Col => self.remove_from_col(ExcludedPos::Group(positions), value)?,
-                RegionType::Box => self.remove_from_box(ExcludedPos::Group(positions), value)?,
+                RegionType::Row => self.remove_from_row(&ExcludedPos::Group(positions), value)?,
+                RegionType::Col => self.remove_from_col(&ExcludedPos::Group(positions), value)?,
+                RegionType::Box => self.remove_from_box(&ExcludedPos::Group(positions), value)?,
             };
             if is_solved {
                 return Ok(true);
@@ -207,7 +227,7 @@ impl<const N: usize> SudokuBoard<N> {
     }
 
     pub fn is_valid_subset(&self, subset: &Subset) -> Result<(), String> {
-        for &(row, col) in subset.positions.iter() {
+        for &(row, col) in &subset.positions {
             let possible_values: Vec<_> = self.board.get_possible_values(row, col).collect();
             if !possible_values.iter().all(|v| subset.values.contains(v)) {
                 return Err(format!(
@@ -221,13 +241,19 @@ impl<const N: usize> SudokuBoard<N> {
     }
 }
 
-impl<const N: usize> Debug for SudokuBoard<N> {
+impl<const N: usize> Debug for SudokuBoard<N>
+where
+    ForSize<N>: StorageForSize,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(&self.board, f)
     }
 }
 
-impl<const N: usize> Display for SudokuBoard<N> {
+impl<const N: usize> Display for SudokuBoard<N>
+where
+    ForSize<N>: StorageForSize,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.board, f)
     }

@@ -12,7 +12,7 @@ where
 {
     fn debug_join(self, sep: &str) -> String {
         self.enumerate()
-            .map(|(i, x)| format!("{}. {:?}", i, x))
+            .map(|(i, x)| format!("{i}. {x:?}"))
             .collect::<Vec<String>>()
             .join(sep)
     }
